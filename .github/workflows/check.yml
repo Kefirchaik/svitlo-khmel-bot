@@ -1,0 +1,17 @@
+name: Check electricity updates
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel checker
+        env:
+          CHECK_URL: ${{ secrets.CHECK_URL }}
+          CHECK_SECRET: ${{ secrets.CHECK_SECRET }}
+        run: |
+          curl --fail-with-body --retry 2 --max-time 40 \
+            -H "Authorization: Bearer ${CHECK_SECRET}" \
+            "${CHECK_URL}"
