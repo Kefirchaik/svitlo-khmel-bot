@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const url = 'https://' + req.headers.host + '/api/telegram';
   const response = await fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({url, secret_token:secret, allowed_updates:['message']})
+    body:JSON.stringify({url, secret_token:secret, allowed_updates:['message','callback_query']})
   });
   const data = await response.json();
   return res.status(data.ok ? 200 : 502).json({ok:data.ok, description:data.description, webhook_url:url});
