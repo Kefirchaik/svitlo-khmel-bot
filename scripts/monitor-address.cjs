@@ -9,9 +9,14 @@ const {chromium}=require('playwright');
    await select.locator('xpath=following-sibling::span[contains(@class,"select2")]').click();
    const field=page.locator('.select2-container--open input.select2-search__field');
    if(await field.count()) await field.fill(search);
-   const option=page.locator('.select2-results__option').filter({hasText:exact}).first();
+   // Select2 results are loaded asynchronously; wait for the server's options.
+   await page.waitForTimeout(1700);
+   const options=page.locator('.select2-results__option');
+   console.log('OPTIONS_'+name,JSON.stringify((await options.allTextContents()).slice(0,15)));
+   const option=options.filter({hasText:exact}).first();
    await option.waitFor({state:'visible',timeout:20000});
    await option.click();
+   await page.waitForTimeout(1200);
    const selected=await select.evaluate(n=>n.selectedOptions[0]?.text?.trim());
    if(selected!==exact) throw new Error('Unexpected '+name+': '+selected);
   }
