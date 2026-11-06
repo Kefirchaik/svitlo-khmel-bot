@@ -1,0 +1,21 @@
+name: Monitor address outages
+on:
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
+  workflow_dispatch:
+jobs:
+  address:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Check address and notify on changes
+        env:
+          ADDRESS_UPDATE_URL: https://svitlo-khmel-bot.vercel.app/api/address-update
+          CHECK_SECRET: ${{ secrets.CHECK_SECRET }}
+        run: node scripts/monitor-address.cjs
