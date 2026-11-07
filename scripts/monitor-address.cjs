@@ -6,22 +6,32 @@ async function api(path,body){
  const r=await fetch(API+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+secret,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
  const text=await r.text();if(!r.ok)throw Error(path+' HTTP '+r.status+' '+text.slice(0,300));return JSON.parse(text);
 }
-async function select(page,name,wanted){
+async function select(page,name,wanted,id){
  const s=page.locator('select[name="'+name+'"]');
+ if(id){
+  const value=String(id);
+  try{
+   await s.locator('option[value="'+value+'"]').waitFor({state:'attached',timeout:7000});
+   await s.selectOption(value);
+   await s.evaluate(el=>{if(window.jQuery)window.jQuery(el).trigger('change');});
+   await page.waitForTimeout(1700);
+   console.log('SELECTED_ID',name,value);
+   return;
+  }catch(e){console.log('ID_SELECT_FALLBACK',name,e.message.slice(0,150));}
+ }
  await s.locator('xpath=following-sibling::span[contains(@class,"select2")]').click();
  const field=page.locator('.select2-container--open input.select2-search__field');
- if(await field.count())await field.fill(wanted.replace(/^(с\.|м\.|смт\.|вул\.|пров\.)\s*/,'').replace(/\s*\([^)]*\)/g,''));
- await page.waitForTimeout(1500);
+ if(await field.count())await field.fill(wanted.replace(/^(с\\.|м\\.|смт\\.|вул\\.|пров\\.)\\s*/,'').replace(/\\s*\\([^)]*\\)/g,''));
+ await page.waitForTimeout(1700);
  const opts=page.locator('.select2-results__option');
  const options=(await opts.allTextContents()).map(s=>s.trim()).filter(Boolean);
  let match=options.find(x=>x.toLocaleLowerCase('uk-UA')===wanted.toLocaleLowerCase('uk-UA'));
  if(!match)match=options.find(x=>normalize(x)===normalize(wanted));
- if(!match)throw Error('Не знайдено '+name+': '+wanted);
+ if(!match)throw Error('Не знайдено '+name+': '+wanted+'; варіанти: '+options.slice(0,8).join(' | '));
  await opts.filter({hasText:match}).first().click();
- await page.waitForTimeout(900);
- const selected=await s.evaluate(n=>n.selectedOptions[0]?.text?.trim()||'');
- if(normalize(selected)!==normalize(wanted))throw Error('Адреса не збігається: '+selected);
+ await page.waitForTimeout(1700);
 }
+
 (async()=>{
  if(!secret)throw Error('Missing CHECK_SECRET');
  const {addresses}=await api('/api/subscriptions');
@@ -35,9 +45,9 @@ async function select(page,name,wanted){
    const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
    try{
     await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
-    await select(page,'settlment',address.settlement);
-    await select(page,'street',address.street);
-    await select(page,'house',address.house);
+    await select(page,'settlment',address.settlement,address.settlementId);
+    await select(page,'street',address.street,address.streetId);
+    await select(page,'house',address.house,address.houseId);
     await page.waitForTimeout(1700);
     const table=page.locator('table').filter({hasText:'Тип відключення'}).first();
     await table.waitFor({state:'visible',timeout:18000});
