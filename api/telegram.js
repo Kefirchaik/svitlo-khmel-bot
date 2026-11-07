@@ -5,8 +5,10 @@ const SOURCE='https://hoe.com.ua/shutdown/new';
 const DONATE='https://send.monobank.ua/jar/SDWp3ABSr';
 const GRAPH='https://hoe.com.ua/page/pogodinni-vidkljuchennja';
 const INDEX='khm-energy:public:users:v1';
-const OWNER='с. Чаньків, вул. Миру, 5';
-const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Графіки'}],[{text:'🔔 Сповіщення'},{text:'💛 Підтримати автора'}],[{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
+const VERSION='1.0.0';
+const OFFICIAL='https://t.me/khmelnytskoblenergo';
+const greeting=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h>=5&&h<12?'Доброго ранку':h>=12&&h<18?'Добрий день':h>=18&&h<23?'Добрий вечір':'Доброї ночі';};
+const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Графіки'}],[{text:'🔔 Сповіщення'},{text:'💛 Підтримати автора'}],[{text:'📰 Новини обленерго'},{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
 const uid=id=>'khm-energy:public:user:'+id;
 const ak=id=>'khm-energy:public:address:'+id;
 const clean=s=>String(s||'').trim().replace(/\\s+/g,' ').slice(0,90);
@@ -45,16 +47,18 @@ export default async function handler(req,res){
    await saveUser(id,u);
   }
   const t=clean(cb?.data||msg.text);
-  const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help',status:'/status',graph:'/graph',refresh:'/status'};
+  const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
-  if(cmd==='/start'){await saveUser(id,u);await send(id,'⚡ Вітаємо у боті «Світло Хмельниччини»!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
+  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\\n\\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
   else if(cmd==='/address'){u.step='settlement';await saveUser(id,u);await send(id,'📍 Напиши населений пункт у Хмельницькій області (наприклад: Дунаївці або Чаньків).\nДля скасування надішли /cancel.');}
   else if(cmd==='/cancel'){u.step=null;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');}
   else if(cmd==='/status')await showStatus(id,u);
+  else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\\n'+OFFICIAL+'\\n\\nВажливі повідомлення з каналу надходитимуть автоматично.');
+  else if(cmd==='/version')await send(id,'⚡ Світло Хмельниччини v'+VERSION+'\\n🟢 Публічна версія.\\nНовини: '+OFFICIAL);
   else if(cmd==='/graph')await send(id,'📅 Офіційні графіки погодинних відключень:\n'+GRAPH);
   else if(cmd==='/donate')await send(id,'💛 Підтримати автора бота можна добровільним внеском:\n'+DONATE+'\nДякую за підтримку!');
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
-  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
+  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\\n📰 Новини обленерго — офіційний канал.\\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
   else if(u.step&&t&&!t.startsWith('/')){
    if(t.length<1||t.length>90)return res.json({ok:true});
    if(u.step==='settlement'){u.draft={settlement:t};u.step='street';await saveUser(id,u);await send(id,'🏘 Населений пункт: '+t+'\nТепер напиши вулицю з типом (наприклад: вул. Миру або пров. Миру).');}
