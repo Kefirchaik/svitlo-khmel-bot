@@ -9,6 +9,8 @@ const VERSION='1.0.0';
 const OFFICIAL='https://t.me/khmelnytskoblenergo';
 const PRIVACY='https://svitlo-khmel-bot.vercel.app/privacy';
 const TERMS='https://svitlo-khmel-bot.vercel.app/terms';
+const CONSENT_TEXT='🔐 Перед початком користування ознайомся з документами:\n'+PRIVACY+'\n'+TERMS+'\n\nБот зберігатиме твій Telegram ID, вибрану адресу та налаштування для надання послуг. Натисни «✅ Приймаю умови», якщо погоджуєшся. Без згоди дані не зберігаються.';
+const CONSENT_BUTTONS={inline_keyboard:[[{text:'🔐 Політика',url:PRIVACY},{text:'📜 Умови',url:TERMS}],[{text:'✅ Приймаю умови',callback_data:'consent_accept'}],[{text:'❌ Не погоджуюся',callback_data:'consent_decline'}]]};
 const greeting=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h>=5&&h<12?'Доброго ранку':h>=12&&h<18?'Добрий день':h>=18&&h<23?'Добрий вечір':'Доброї ночі';};
 const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Графіки'}],[{text:'🔔 Сповіщення'},{text:'💛 Підтримати автора'}],[{text:'📰 Новини обленерго'},{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
 const uid=id=>'khm-energy:public:user:'+id;
@@ -65,7 +67,10 @@ export default async function handler(req,res){
   let u=await getUser(id);
 
   const t=clean(cb?.data||msg.text);
-  if(t==='delete_confirm'){await redis(['DEL',uid(id)]);await redis(['SREM',INDEX,id]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
+  if(t==='consent_decline'){await send(id,'Без згоди бот не зберігає твої дані. Якщо передумаєш — надішли /start.');return res.json({ok:true});}
+  if(t==='consent_accept'){u.consentAt=new Date().toISOString();await saveUser(id,u);await send(id,'✅ Дякуємо! Згоду збережено. Тепер можеш вибрати адресу кнопкою «📍 Моя адреса».');return res.json({ok:true});}
+  if(!u.consentAt){await send(id,CONSENT_TEXT,{reply_markup:CONSENT_BUTTONS});return res.json({ok:true});}
+  if(t==='delete_confirm'){await redis(['SREM',INDEX,id]);await redis(['DEL',uid(id)]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
   if(t==='delete_cancel'){await send(id,'Видалення скасовано.');return res.json({ok:true});}
   if(t==='cancel'){u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');return res.json({ok:true});}
   if(t.startsWith('pick:')&&u.step){
@@ -81,7 +86,7 @@ export default async function handler(req,res){
   }
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
-  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nПродовжуючи використання, ти підтверджуєш ознайомлення з документами.');}
+  if(cmd==='/start'){await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nТи можеш відкликати згоду командою /delete_my_data.');}
   else if(cmd==='/privacy')await send(id,'🔐 Політика конфіденційності:\n'+PRIVACY+'\n\n📜 Умови користування:\n'+TERMS+'\nКонтакт: @kefirchaik');
   else if(cmd==='/terms')await send(id,'📜 Умови користування:\n'+TERMS); 
   else if(cmd==='/delete_my_data')await send(id,'🗑 Видалити Telegram ID, адресу та налаштування зі сховища бота? Це не можна скасувати.',{reply_markup:{inline_keyboard:[[{text:'🗑 Так, видалити',callback_data:'delete_confirm'}],[{text:'Скасувати',callback_data:'delete_cancel'}]]}});
