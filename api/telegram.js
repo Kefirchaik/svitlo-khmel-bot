@@ -33,7 +33,7 @@ async function showStatus(id,u){
  if(data.error)out+='\n⚠️ Остання автоматична перевірка не вдалася. Нижче — дані попередньої успішної перевірки, вони можуть бути застарілими.';
  else if(!data.events?.length)out+='\nУ таблиці сайту записів про відключення немає.';
  else out+='\n'+data.events.map(e=>'• '+e.kind+' | ГПВ '+e.gpv+' | ГАВ '+e.gav+'\n'+e.start+' — '+e.end).join('\n\n');
- out+=await gpvSummary(data);\n const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
+ \n const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
  if(active)out+='\n\n⏳ До запланованого завершення: '+duration(active.endMs-Date.now());
 
  if(data.checkedAt)out+='\n\n🕒 Перевірено: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'});
@@ -56,7 +56,7 @@ async function showSchedule(id,u){
   out+=entries.length?'\n'+entries.map(e=>'• '+e.kind+' | '+kyivTime(e.startMs)+' — '+kyivTime(e.endMs)+(dayKey(new Date(e.startMs))!==dayKey(new Date(e.endMs))?' (перехід доби)':'')).join('\n'):'\nУ таблиці немає записів.';
   out+='\n';
  }
- out+=await gpvSummary(data);\n return send(id,(out+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
+ \n return send(id,(out+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
 }
 async function showHealth(id,u){
  const data=await readAddress(u);
@@ -84,7 +84,7 @@ async function showCountdown(id,u){
  if(active)out+='💡 До запланованого завершення '+active.kind.toLowerCase()+': '+duration(active.endMs-now)+'\n'+kyivDate(active.endMs)+' о '+kyivTime(active.endMs);
  else if(next)out+='⚠️ До наступного записаного відключення: '+duration(next.startMs-now)+'\n'+kyivDate(next.startMs)+' о '+kyivTime(next.startMs);
  else out+='Майбутніх або поточних записів у таблиці немає.';
- out+=await gpvSummary(data);\n return send(id,(out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.').slice(0,4000));
+ \n return send(id,(out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.').slice(0,4000));
 }
 
 // Адмін-панель доступна виключно власнику через приватний Telegram-чат.
