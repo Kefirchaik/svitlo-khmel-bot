@@ -7,10 +7,10 @@ export default async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'POST only'});
  if(!process.env.CHECK_SECRET||req.headers.authorization!=='Bearer '+process.env.CHECK_SECRET)return res.status(401).json({error:'Unauthorized'});
  if(!URL||!RT||!process.env.TELEGRAM_BOT_TOKEN)return res.status(500).json({error:'Missing configuration'});
- const sha=req.body?.sha,notes=req.body?.notes;
- if(typeof sha!=='string'||!/^[a-f0-9]{40}$/.test(sha)||typeof notes!=='string'||notes.length>1800)return res.status(400).json({error:'Invalid payload'});
- if(process.env.VERCEL_GIT_COMMIT_SHA&&process.env.VERCEL_GIT_COMMIT_SHA!==sha)return res.status(409).json({error:'Deployment does not match commit'});
- const key='khm-energy:release-notified:'+sha;
+ const version=req.body?.version,notes=req.body?.notes;
+ if(typeof version!=='string'||!/^\d+\.\d+\.\d+$/.test(version)||typeof notes!=='string'||notes.length>1800)return res.status(400).json({error:'Invalid payload'});
+
+ const key='khm-energy:release-notified:version:'+version;
  try{
   const acquired=await redis(['SET',key,'sending','NX','EX',86400*90]);
   if(acquired!=='OK')return res.json({ok:true,duplicate:true});
