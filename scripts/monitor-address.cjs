@@ -42,13 +42,17 @@ async function select(page,name,wanted,id){
 (async()=>{
  if(!secret)throw Error('Missing CHECK_SECRET');
  const {addresses}=await api('/api/subscriptions');
- console.log('Addresses to monitor:',addresses.length);
+ const requested=await api('/api/refresh-requests').catch(e=>{console.error('Refresh queue unavailable:',e.message);return {ids:[]};});
+ console.log('Addresses to monitor:',addresses.length,'requested:',requested.ids.length);
  const browser=await chromium.launch({headless:true});
  try{
   const batchSize=12;const batchCount=Math.max(1,Math.ceil(addresses.length/batchSize));
   const batch=Math.floor(Date.now()/600000)%batchCount;
   console.log('Batch',batch+1,'of',batchCount);
-  for(const address of addresses.slice(batch*batchSize,(batch+1)*batchSize)){
+  const selected=new Map();
+  for(const address of addresses.filter(a=>requested.ids.includes(a.id)).slice(0,12))selected.set(address.id,address);
+  for(const address of addresses.slice(batch*batchSize,(batch+1)*batchSize))selected.set(address.id,address);
+  for(const address of selected.values()){
    const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
    try{
     await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
