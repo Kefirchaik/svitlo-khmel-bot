@@ -26,14 +26,23 @@ function extract(raw){
 }
 export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'GET only'});
- const level=String(req.query.level||''),parent=String(req.query.parent||'');
+ const level=String(req.query.level||''),parent=String(req.query.parent||''),query=String(req.query.q||'').trim().slice(0,90);
  if(!paths[level]||(level!=='settlement'&&!/^\d{1,12}$/.test(parent)))return res.status(400).json({error:'Invalid level or parent'});
  try{
-  const target=BASE+paths[level]+(level==='settlement'?'':encodeURIComponent(parent));
-  const response=await fetch(target,{headers:{Accept:'application/json, text/html, */*','User-Agent':'Mozilla/5.0','X-Requested-With':'XMLHttpRequest',Referer:BASE+'/shutdown/new'},signal:AbortSignal.timeout(12000)});
-  if(!response.ok)throw Error('Source HTTP '+response.status);
-  const raw=await response.text(),items=extract(raw).filter(x=>x.id&&x.text&&x.id.length<100&&x.text.length<200).slice(0,10000);
-  res.setHeader('Cache-Control','s-maxage=300, stale-while-revalidate=600');
-  return res.json({ok:true,items});
+  const endpoint=BASE+paths[level]+(level==='settlement'?'':encodeURIComponent(parent));
+  const attempts=[query?endpoint+'?q='+encodeURIComponent(query):endpoint,query?endpoint+'?term='+encodeURIComponent(query):endpoint,query?endpoint+'?search='+encodeURIComponent(query):endpoint,endpoint];
+  let items=[],lastError='';
+  for(const target of [...new Set(attempts)]){
+   try{
+    const response=await fetch(target,{headers:{Accept:'application/json, text/html, */*','User-Agent':'Mozilla/5.0','X-Requested-With':'XMLHttpRequest',Referer:BASE+'/shutdown/new'},signal:AbortSignal.timeout(9000)});
+    if(!response.ok){lastError='Source HTTP '+response.status;continue;}
+    const raw=await response.text();items=extract(raw).filter(x=>x.id&&x.text&&x.id.length<100&&x.text.length<200);
+    if(query)items=items.filter(x=>x.text.toLocaleLowerCase('uk-UA').includes(query.toLocaleLowerCase('uk-UA')));
+    if(items.length)break;
+   }catch(e){lastError=e.message;}
+  }
+  if(!items.length){console.warn('Empty catalog',level,query,lastError);return res.status(503).json({ok:false,error:'Офіційний список не повернув адрес. Спробуй пізніше.'});}
+  res.setHeader('Cache-Control','s-maxage=60, stale-while-revalidate=120');
+  return res.json({ok:true,items:items.slice(0,10000)});
  }catch(e){console.error('Address catalog',level,e.message);return res.status(502).json({ok:false,error:'Офіційний список тимчасово недоступний'});}
 }
