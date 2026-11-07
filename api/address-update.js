@@ -18,6 +18,7 @@ export default async function handler(req,res){
   const record={events:sorted||old?.events||[],checkedAt:sorted?new Date().toISOString():(old?.checkedAt||null),lastAttemptAt:new Date().toISOString(),error:typeof error==='string'?error.slice(0,200):null};
   if(address.id==='legacy-chankiv-myru-5'&&sorted)await redis(['SET','khm-energy:address:chankiv-myru-5:v1',JSON.stringify(sorted)]);
   await redis(['SET',key,JSON.stringify(record)]);
+  if(sorted)await redis(['SREM','khm-energy:refresh:requests:v1',address.id]);
   const changed=!!sorted&&!!old&&!old.error&&JSON.stringify(old.events)!==JSON.stringify(sorted);
   if(changed){
    const ids=await redis(['SMEMBERS',USERS])||[];
