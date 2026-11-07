@@ -1,0 +1,43 @@
+name: Announce deployed bot updates
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for matching Vercel deployment and notify users
+        env:
+          CHECK_SECRET: ${{ secrets.CHECK_SECRET }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          base='https://svitlo-khmel-bot.vercel.app'
+          sha=os.environ['COMMIT_SHA']
+          message=os.environ.get('COMMIT_MESSAGE','').splitlines()[0][:250]
+          for attempt in range(32):
+              try:
+                  req=urllib.request.Request(base+'/api/version',headers={'Cache-Control':'no-cache'})
+                  with urllib.request.urlopen(req,timeout=15) as response:
+                      data=json.load(response)
+                  if data.get('commit')==sha:
+                      break
+              except Exception as exc:
+                  print('Waiting for deployment:',exc,flush=True)
+              time.sleep(15)
+          else:
+              raise SystemExit('Deployment not confirmed; announcement skipped')
+          if 'Release v1.0' in message:
+              with open('RELEASE_NOTES.md',encoding='utf-8') as f: notes=f.read()
+          else:
+              notes='🔧 Оновлення бота\n\n'+message+'\n\nВиправлення та покращення вже доступні.'
+          body=json.dumps({'sha':sha,'notes':notes},ensure_ascii=False).encode()
+          req=urllib.request.Request(base+'/api/release-notify',data=body,method='POST',headers={'Authorization':'Bearer '+os.environ['CHECK_SECRET'],'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=120) as response:
+              print(response.read().decode(),flush=True)
+          PY
