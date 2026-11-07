@@ -19,6 +19,7 @@ function addr(u){return u.address?[u.address.settlement,u.address.street,u.addre
 async function showStatus(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу кнопкою «Моя адреса».');
  const key=ak(u.address.id);const raw=await redis(['GET',key]);
+ if(!raw&&u.address.id==='legacy-chankiv-myru-5'){const old=await redis(['GET','khm-energy:address:chankiv-myru-5:v1']);if(old){const events=JSON.parse(old);return send(id,'⚡ Останні збережені відключення:\n📍 '+addr(u)+'\n\n'+(events.length?events.map(e=>e.kind+' | ГПВ '+e.gpv+' | ГАВ '+e.gav+'\n'+e.start+' — '+e.end).join('\n\n'):'Записів немає.')+'\n\nДжерело: '+SOURCE);}}
  if(!raw)return send(id,'⏳ Для адреси '+addr(u)+' ще немає результату автоматичної перевірки. Зачекай наступного циклу (приблизно 10 хвилин).\n'+SOURCE);
  const data=JSON.parse(raw);
  let out='⚡ Відключення за адресою:\n📍 '+addr(u)+'\n';
@@ -55,7 +56,7 @@ export default async function handler(req,res){
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
   else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
   else if(u.step&&t&&!t.startsWith('/')){
-   if(t.length<2||t.length>90)return res.json({ok:true});
+   if(t.length<1||t.length>90)return res.json({ok:true});
    if(u.step==='settlement'){u.draft={settlement:t};u.step='street';await saveUser(id,u);await send(id,'🏘 Населений пункт: '+t+'\nТепер напиши вулицю з типом (наприклад: вул. Миру або пров. Миру).');}
    else if(u.step==='street'){u.draft.street=t;u.step='house';await saveUser(id,u);await send(id,'🏠 Напиши номер будинку (наприклад: 5 або 15А).');}
    else if(u.step==='house'){
