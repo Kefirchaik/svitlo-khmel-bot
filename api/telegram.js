@@ -7,6 +7,8 @@ const GRAPH='https://hoe.com.ua/page/pogodinni-vidkljuchennja';
 const INDEX='khm-energy:public:users:v1';
 const VERSION='1.0.0';
 const OFFICIAL='https://t.me/khmelnytskoblenergo';
+const PRIVACY='https://svitlo-khmel-bot.vercel.app/privacy';
+const TERMS='https://svitlo-khmel-bot.vercel.app/terms';
 const greeting=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h>=5&&h<12?'Доброго ранку':h>=12&&h<18?'Добрий день':h>=18&&h<23?'Добрий вечір':'Доброї ночі';};
 const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Графіки'}],[{text:'🔔 Сповіщення'},{text:'💛 Підтримати автора'}],[{text:'📰 Новини обленерго'},{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
 const uid=id=>'khm-energy:public:user:'+id;
@@ -63,6 +65,8 @@ export default async function handler(req,res){
   let u=await getUser(id);
 
   const t=clean(cb?.data||msg.text);
+  if(t==='delete_confirm'){await redis(['DEL',uid(id)]);await redis(['SREM',INDEX,id]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
+  if(t==='delete_cancel'){await send(id,'Видалення скасовано.');return res.json({ok:true});}
   if(t==='cancel'){u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');return res.json({ok:true});}
   if(t.startsWith('pick:')&&u.step){
    const match=/^pick:(settlement|street|house):([0-7])$/.exec(t);
@@ -77,7 +81,10 @@ export default async function handler(req,res){
   }
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
-  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
+  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nПродовжуючи використання, ти підтверджуєш ознайомлення з документами.');}
+  else if(cmd==='/privacy')await send(id,'🔐 Політика конфіденційності:\n'+PRIVACY+'\n\n📜 Умови користування:\n'+TERMS+'\nКонтакт: @kefirchaik');
+  else if(cmd==='/terms')await send(id,'📜 Умови користування:\n'+TERMS); 
+  else if(cmd==='/delete_my_data')await send(id,'🗑 Видалити Telegram ID, адресу та налаштування зі сховища бота? Це не можна скасувати.',{reply_markup:{inline_keyboard:[[{text:'🗑 Так, видалити',callback_data:'delete_confirm'}],[{text:'Скасувати',callback_data:'delete_cancel'}]]}});
   else if(cmd==='/address'){u.step='settlement';delete u.draft;delete u.options;await saveUser(id,u);await send(id,'📍 Введи частину назви населеного пункту. Бот запропонує варіанти з офіційного списку.\nДля скасування надішли /cancel.');}
   else if(cmd==='/cancel'){u.step=null;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');}
   else if(cmd==='/status')await showStatus(id,u);
@@ -86,7 +93,7 @@ export default async function handler(req,res){
   else if(cmd==='/graph')await send(id,'📅 Офіційні графіки погодинних відключень:\n'+GRAPH);
   else if(cmd==='/donate')await send(id,'💛 Підтримати автора бота можна добровільним внеском:\n'+DONATE+'\nДякую за підтримку!');
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
-  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
+  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\n🔐 /privacy — політика конфіденційності.\n📜 /terms — умови користування.\n🗑 /delete_my_data — видалити особисті налаштування.\nКонтакт: @kefirchaik\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
   else if(u.step&&t&&!t.startsWith('/'))await choices(id,u,t);
   else if(t.startsWith('/'))await send(id,'Невідома команда. Натисни «ℹ️ Допомога».');
  }catch(e){console.error('Bot error',e.message);try{await send(id,u?.step?'⚠️ Не вдалося завантажити офіційний список адрес. Спробуй пізніше або натисни /cancel.':'⚠️ Сталася помилка. Спробуй ще раз пізніше.');}catch{}}
