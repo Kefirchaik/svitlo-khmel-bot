@@ -30,7 +30,7 @@ async function showStatus(id,u){
  if(!raw)return send(id,'⏳ Для адреси '+addr(u)+' ще немає результату автоматичної перевірки. Зачекай наступного циклу (приблизно 10 хвилин).\n'+SOURCE);
  const data=JSON.parse(raw);
  let out='⚡ Відключення за адресою:\n📍 '+addr(u)+'\n';
- if(data.error)out+='\n⚠️ Не вдалося перевірити адресу: '+data.error;
+ if(data.error)out+='\n⚠️ Остання автоматична перевірка не вдалася. Нижче — дані попередньої успішної перевірки, вони можуть бути застарілими.';
  else if(!data.events?.length)out+='\nУ таблиці сайту записів про відключення немає.';
  else out+='\n'+data.events.map(e=>'• '+e.kind+' | ГПВ '+e.gpv+' | ГАВ '+e.gav+'\n'+e.start+' — '+e.end).join('\n\n');
  const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
@@ -47,7 +47,7 @@ async function showSchedule(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу.');
  const data=await readAddress(u);
  if(!data)return send(id,'⏳ Ще немає даних для цієї адреси. Зачекай перевірки.');
- if(data.error)return send(id,'⚠️ Остання перевірка завершилася помилкою: '+data.error+checkedLine(data));
+ if(data.error)return send(id,'⚠️ Не вдалося оновити дані з сайту обленерго.\n'+(data.checkedAt?'🕒 Остання успішна перевірка: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'}):'Успішних перевірок ще не було.')+'\n\nРозклад може бути застарілим. Спробуй пізніше або перевір офіційне джерело:\n'+SOURCE);
  const events=timeline(data.events),today=dayKey(),tomorrow=nextDayKey();
  let out='📅 Відключення на сьогодні та завтра\n📍 '+addr(u)+'\n';
  for(const [key,label] of [[today,'Сьогодні'],[tomorrow,'Завтра']]){
@@ -63,7 +63,7 @@ async function showHealth(id,u){
  let out='🟢 Бот відповідає на команди.\nВерсія: '+VERSION+'\n';
  if(!u.address)out+='📍 Адресу ще не вибрано.';
  else if(!data)out+='📍 '+addr(u)+'\n⏳ Даних перевірки ще немає.';
- else out+='📍 '+addr(u)+'\n'+freshness(data)+checkedLine(data)+(data.error?'\n⚠️ Помилка джерела: '+data.error:'\n📋 Записів у відповіді: '+(data.events?.length||0));
+ else out+='📍 '+addr(u)+'\n'+freshness(data)+checkedLine(data)+(data.error?'\n⚠️ Остання перевірка джерела не вдалася.':'\n📋 Записів у відповіді: '+(data.events?.length||0));
  out+='\n🔔 Сповіщення: '+(u.alerts===false?'вимкнено':'увімкнено')+'\nℹ️ «Оновити» показує кеш, не запускає нову перевірку.';
  return send(id,out);
 }
