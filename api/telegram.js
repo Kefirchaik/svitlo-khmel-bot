@@ -13,7 +13,7 @@ const TERMS='https://svitlo-khmel-bot.vercel.app/terms';
 const CONSENT_TEXT='🔐 Перед початком користування ознайомся з документами:\n'+PRIVACY+'\n'+TERMS+'\n\nБот зберігатиме твій Telegram ID, вибрану адресу та налаштування для надання послуг. Натисни «✅ Приймаю умови», якщо погоджуєшся. Без згоди дані не зберігаються.';
 const CONSENT_BUTTONS={inline_keyboard:[[{text:'🔐 Політика',url:PRIVACY},{text:'📜 Умови',url:TERMS}],[{text:'✅ Приймаю умови',callback_data:'consent_accept'}],[{text:'❌ Не погоджуюся',callback_data:'consent_decline'}]]};
 const greeting=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h>=5&&h<12?'Доброго ранку':h>=12&&h<18?'Добрий день':h>=18&&h<23?'Добрий вечір':'Доброї ночі';};
-const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Сьогодні / завтра'}],[{text:'⏳ Відлік'},{text:'🔔 Сповіщення'}],[{text:'🟢 Стан бота'},{text:'✉️ Зворотний зв’язок'}],[{text:'📰 Новини обленерго'},{text:'📅 Офіційні графіки'}],[{text:'💛 Підтримати автора'},{text:'ℹ️ Допомога'}]]],resize_keyboard:true,is_persistent:true};
+const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Сьогодні / завтра'}],[{text:'⏳ Відлік'},{text:'🔔 Сповіщення'}],[{text:'🟢 Стан бота'},{text:'✉️ Зворотний зв’язок'}],[{text:'📰 Новини обленерго'},{text:'📅 Офіційні графіки'}],[{text:'💛 Підтримати автора'},{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
 const uid=id=>'khm-energy:public:user:'+id;
 const ak=id=>'khm-energy:public:address:'+id;
 const clean=s=>String(s||'').trim().replace(/\\s+/g,' ').slice(0,90);
