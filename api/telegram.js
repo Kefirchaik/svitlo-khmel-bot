@@ -32,6 +32,25 @@ async function showStatus(id,u){
  out+='\nℹ️ Це записи сайту, не підтвердження фактичної наявності світла.\n'+SOURCE;
  return send(id,out.slice(0,4000));
 }
+const levels={settlement:'населений пункт',street:'вулицю',house:'будинок'};
+async function catalog(level,parent){
+ const base=process.env.VERCEL_URL?'https://'+process.env.VERCEL_URL:'https://svitlo-khmel-bot.vercel.app';
+ const r=await fetch(base+'/api/address-options?level='+level+(parent?'&parent='+encodeURIComponent(parent):''),{signal:AbortSignal.timeout(15000)});
+ if(!r.ok)throw Error('Address catalog HTTP '+r.status);
+ const data=await r.json();if(!Array.isArray(data.items))throw Error('Invalid address catalog');return data.items;
+}
+async function choices(id,u,query=''){
+ const level=u.step;const parent=level==='street'?u.draft?.settlementId:level==='house'?u.draft?.streetId:null;
+ const items=await catalog(level,parent);
+ const q=query.toLocaleLowerCase('uk-UA').trim();
+ const found=items.filter(x=>x.text.toLocaleLowerCase('uk-UA').includes(q));
+ if(!found.length)return send(id,'🔎 Нічого не знайдено в офіційному списку. Уточни назву або введи інший пошуковий запит.');
+ u.options=found.slice(0,8);await saveUser(id,u);
+ const keyboard=u.options.map((x,i)=>[{text:x.text,callback_data:'pick:'+level+':'+i}]);
+ keyboard.push([{text:'❌ Скасувати',callback_data:'cancel'}]);
+ return send(id,'📍 Обери '+levels[level]+' з офіційного списку'+(found.length>8?' (показано перші 8 із '+found.length+', уточни пошук)':'')+':',{reply_markup:{inline_keyboard:keyboard}});
+}
+
 export default async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'POST only'});
  if(!TOKEN||!process.env.WEBHOOK_SECRET)return res.status(500).json({error:'Missing configuration'});
@@ -44,10 +63,23 @@ export default async function handler(req,res){
   let u=await getUser(id);
 
   const t=clean(cb?.data||msg.text);
+  if(t==='cancel'){u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');return res.json({ok:true});}
+  if(t.startsWith('pick:')&&u.step){
+   const match=/^pick:(settlement|street|house):([0-7])$/.exec(t);
+   if(!match||match[1]!==u.step||!u.options?.[Number(match[2])]){await send(id,'⚠️ Кнопка застаріла. Введи пошуковий запит ще раз.');return res.json({ok:true});}
+   const item=u.options[Number(match[2])];
+   const parent=u.step==='street'?u.draft?.settlementId:u.step==='house'?u.draft?.streetId:null;
+   const actual=await catalog(u.step,parent);
+   if(!actual.some(x=>x.id===item.id&&x.text===item.text))throw Error('Stale address choice');
+   if(u.step==='settlement'){u.draft={settlement:item.text,settlementId:item.id};u.step='street';delete u.options;await saveUser(id,u);await send(id,'🏘 Обрано: '+item.text+'\\nВведи частину назви вулиці для пошуку в офіційному списку.');}
+   else if(u.step==='street'){u.draft.street=item.text;u.draft.streetId=item.id;u.step='house';delete u.options;await saveUser(id,u);await send(id,'🏠 Обрано: '+item.text+'\\nВведи номер будинку для пошуку в офіційному списку.');}
+   else {const a={settlement:u.draft.settlement,street:u.draft.street,house:item.text,settlementId:u.draft.settlementId,streetId:u.draft.streetId,houseId:item.id};a.id='a'+Buffer.from([a.settlementId,a.streetId,a.houseId].join('|')).toString('base64url');u.address=a;u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'✅ Адресу підтверджено за офіційними списками:\\n📍 '+addr(u)+'\\n\\nДані з’являться після наступної автоматичної перевірки.');}
+   return res.json({ok:true});
+  }
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
   if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
-  else if(cmd==='/address'){u.step='settlement';await saveUser(id,u);await send(id,'📍 Напиши назву свого населеного пункту в Хмельницькій області.\nДля скасування надішли /cancel.');}
+  else if(cmd==='/address'){u.step='settlement';delete u.draft;delete u.options;await saveUser(id,u);await send(id,'📍 Введи частину назви населеного пункту. Бот запропонує варіанти з офіційного списку.\nДля скасування надішли /cancel.');}
   else if(cmd==='/cancel'){u.step=null;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');}
   else if(cmd==='/status')await showStatus(id,u);
   else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\n'+OFFICIAL+'\n\nВажливі повідомлення з каналу надходитимуть автоматично.');
@@ -56,16 +88,7 @@ export default async function handler(req,res){
   else if(cmd==='/donate')await send(id,'💛 Підтримати автора бота можна добровільним внеском:\n'+DONATE+'\nДякую за підтримку!');
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
   else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
-  else if(u.step&&t&&!t.startsWith('/')){
-   if(t.length<1||t.length>90)return res.json({ok:true});
-   if(u.step==='settlement'){u.draft={settlement:t};u.step='street';await saveUser(id,u);await send(id,'🏘 Населений пункт: '+t+'\nТепер напиши назву вулиці разом із її типом.');}
-   else if(u.step==='street'){u.draft.street=t;u.step='house';await saveUser(id,u);await send(id,'🏠 Напиши номер свого будинку.');}
-   else if(u.step==='house'){
-    const a={...u.draft,house:t};a.id='a'+Buffer.from([a.settlement,a.street,a.house].join('|')).toString('base64url').slice(0,150);
-    u.address=a;u.step=null;delete u.draft;await saveUser(id,u);
-    await send(id,'✅ Адресу збережено:\n📍 '+addr(u)+'\n\nПісля наступної автоматичної перевірки з’являться дані. Якщо адресу не буде знайдено, бот повідомить про це.\n'+SOURCE);
-   }
-  }
+  else if(u.step&&t&&!t.startsWith('/'))await choices(id,u,t);
   else if(t.startsWith('/'))await send(id,'Невідома команда. Натисни «ℹ️ Допомога».');
  }catch(e){console.error('Bot error',e.message);try{await send(id,'⚠️ Сталася помилка. Спробуй ще раз пізніше.');}catch{}}
  return res.json({ok:true});
