@@ -26,7 +26,7 @@ export default async function handler(req,res){
    for(const id of ids.slice(0,1000)){
     const raw=await redis(['GET','khm-energy:public:user:'+id]);if(!raw)continue;
     const u=JSON.parse(raw);
-    if(u.address?.id===address.id&&u.alerts!==false)await notify(id,msg);
+    if(u.consentAt&&u.address?.id===address.id&&u.alerts!==false)await notify(id,msg);
    }
   }
   return res.json({ok:true,changed,count:record.events.length,error:record.error});
