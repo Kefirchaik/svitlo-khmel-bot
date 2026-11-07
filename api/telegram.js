@@ -70,9 +70,9 @@ export default async function handler(req,res){
    const item=u.options[Number(match[2])];
    const parent=u.step==='street'?u.draft?.settlementId:u.step==='house'?u.draft?.streetId:null;
    // Choice was already fetched from the official catalog and saved for this user.
-   if(u.step==='settlement'){u.draft={settlement:item.text,settlementId:item.id};u.step='street';delete u.options;await saveUser(id,u);await send(id,'🏘 Обрано: '+item.text+'\\nВведи частину назви вулиці для пошуку в офіційному списку.');}
-   else if(u.step==='street'){u.draft.street=item.text;u.draft.streetId=item.id;u.step='house';delete u.options;await saveUser(id,u);await send(id,'🏠 Обрано: '+item.text+'\\nВведи номер будинку для пошуку в офіційному списку.');}
-   else {const a={settlement:u.draft.settlement,street:u.draft.street,house:item.text,settlementId:u.draft.settlementId,streetId:u.draft.streetId,houseId:item.id};a.id='a'+Buffer.from([a.settlementId,a.streetId,a.houseId].join('|')).toString('base64url');u.address=a;u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'✅ Адресу підтверджено за офіційними списками:\\n📍 '+addr(u)+'\\n\\nДані з’являться після наступної автоматичної перевірки.');}
+   if(u.step==='settlement'){u.draft={settlement:item.text,settlementId:item.id};u.step='street';delete u.options;await saveUser(id,u);await send(id,'🏘 Обрано: '+item.text+'\nВведи частину назви вулиці для пошуку в офіційному списку.');}
+   else if(u.step==='street'){u.draft.street=item.text;u.draft.streetId=item.id;u.step='house';delete u.options;await saveUser(id,u);await send(id,'🏠 Обрано: '+item.text+'\nВведи номер будинку для пошуку в офіційному списку.');}
+   else {const a={settlement:u.draft.settlement,street:u.draft.street,house:item.text,settlementId:u.draft.settlementId,streetId:u.draft.streetId,houseId:item.id};a.id='a'+Buffer.from([a.settlementId,a.streetId,a.houseId].join('|')).toString('base64url');u.address=a;u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'✅ Адресу підтверджено за офіційними списками:\n📍 '+addr(u)+'\n\nДані з’являться після наступної автоматичної перевірки.');}
    return res.json({ok:true});
   }
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
