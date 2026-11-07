@@ -87,6 +87,56 @@ async function showCountdown(id,u){
  return send(id,out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.');
 }
 
+// Адмін-панель доступна виключно власнику через приватний Telegram-чат.
+const ADMIN_MENU={inline_keyboard:[
+ [{text:'📊 Статистика',callback_data:'admin:stats'},{text:'🖥 Система',callback_data:'admin:system'}],
+ [{text:'🔄 Перевірити мою адресу',callback_data:'admin:refresh'}],
+ [{text:'❌ Закрити',callback_data:'admin:close'}]
+]};
+const isAdmin=id=>Boolean(process.env.TELEGRAM_CHAT_ID)&&String(process.env.TELEGRAM_CHAT_ID)===String(id);
+async function adminPanel(id,action='home'){
+ if(!isAdmin(id))return send(id,'⛔ Команда недоступна.');
+ if(action==='close')return send(id,'🔒 Адмін-панель закрита.');
+ if(action==='refresh'){
+  const u=await getUser(id);
+  return requestRefresh(id,u);
+ }
+ let out='🛡 Адмін-панель «Світло Хмельниччини»\n';
+ if(action==='stats'||action==='system'){
+  const ids=(await redis(['SMEMBERS',INDEX])||[]).slice(0,5000);
+  let consent=0,alerts=0,withAddress=0,errors=0,stale=0;
+  const addresses=new Set();
+  // Read only aggregated statistics; never disclose user IDs or addresses.
+  for(const userId of ids){
+   const raw=await redis(['GET',uid(userId)]);
+   if(!raw)continue;
+   let user;try{user=JSON.parse(raw);}catch{continue;}
+   if(!user.consentAt)continue;
+   consent++;
+   if(user.alerts!==false)alerts++;
+   if(user.address?.id){withAddress++;addresses.add(user.address.id);}
+  }
+  out+='\n👥 Користувачів зі згодою: '+consent+
+   '\n🔔 Увімкнені сповіщення: '+alerts+
+   '\n📍 Вибрали адресу: '+withAddress+
+   '\n🏘 Унікальних адрес: '+addresses.size;
+  if(action==='system'){
+   for(const addressId of addresses){
+    const raw=await redis(['GET',ak(addressId)]);
+    if(!raw){stale++;continue;}
+    try{const data=JSON.parse(raw);if(data.error)errors++;if(!data.checkedAt||Date.now()-Date.parse(data.checkedAt)>30*60000)stale++;}catch{errors++;stale++;}
+   }
+   const queued=(await redis(['SCARD','khm-energy:refresh:requests:v1']))||0;
+   out+='\n\n🖥 Моніторинг адрес'+
+    '\n🕒 Застарілі/без перевірки: '+stale+
+    '\n⚠️ Адреси з помилками: '+errors+
+    '\n🔄 Запити в черзі: '+queued+
+    '\nℹ️ Це стан збережених результатів, а не перевірка GitHub Actions у реальному часі.';
+  }
+ }else out+='\nВерсія: '+VERSION+'\nВибери розділ нижче.';
+ return send(id,out,{reply_markup:ADMIN_MENU});
+}
+
 const levels={settlement:'населений пункт',street:'вулицю',house:'будинок'};
 async function catalog(level,parent,query=''){
  const base='https://svitlo-khmel-bot.vercel.app';
@@ -118,6 +168,7 @@ export default async function handler(req,res){
   let u=await getUser(id);
 
   const t=clean(cb?.data||msg.text);
+  if(t==='/admin'||t.startsWith('admin:')){await adminPanel(id,t==='/admin'?'home':t.slice(6));return res.json({ok:true});}
   if(t==='consent_decline'){await send(id,'Без згоди бот не зберігає твої дані. Якщо передумаєш — надішли /start.');return res.json({ok:true});}
   if(t==='consent_accept'){u.consentAt=new Date().toISOString();await saveUser(id,u);await send(id,'✅ Дякуємо! Згоду збережено. Тепер можеш вибрати адресу кнопкою «📍 Моя адреса».');return res.json({ok:true});}
   if(t==='delete_confirm'){await redis(['SREM',INDEX,id]);await redis(['DEL',uid(id)]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
