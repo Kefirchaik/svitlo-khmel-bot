@@ -29,7 +29,7 @@ export default async function handler(req,res){
     const msg='📰 Хмельницькобленерго — офіційне повідомлення:\n\n'+p.text.slice(0,3200)+'\n\n'+p.url+'\n\nЦе загальна новина, не адресний статус.';
     for(const id of ids.slice(0,1000)){
      const uRaw=await redis(['GET','khm-energy:public:user:'+id]);if(!uRaw)continue;
-     const u=JSON.parse(uRaw);if(u.alerts===false)continue;
+     const u=JSON.parse(uRaw);if(!u.consentAt||u.alerts===false)continue;
      try{if(await notify(id,msg))sent++;else failed++;}catch{failed++;}
     }
    }
