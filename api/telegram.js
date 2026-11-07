@@ -69,9 +69,10 @@ export default async function handler(req,res){
   const t=clean(cb?.data||msg.text);
   if(t==='consent_decline'){await send(id,'Без згоди бот не зберігає твої дані. Якщо передумаєш — надішли /start.');return res.json({ok:true});}
   if(t==='consent_accept'){u.consentAt=new Date().toISOString();await saveUser(id,u);await send(id,'✅ Дякуємо! Згоду збережено. Тепер можеш вибрати адресу кнопкою «📍 Моя адреса».');return res.json({ok:true});}
-  if(!u.consentAt){await send(id,CONSENT_TEXT,{reply_markup:CONSENT_BUTTONS});return res.json({ok:true});}
   if(t==='delete_confirm'){await redis(['SREM',INDEX,id]);await redis(['DEL',uid(id)]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
   if(t==='delete_cancel'){await send(id,'Видалення скасовано.');return res.json({ok:true});}
+  if(t==='/delete_my_data'){await send(id,'🗑 Видалити Telegram ID, адресу та налаштування зі сховища бота? Це не можна скасувати.',{reply_markup:{inline_keyboard:[[{text:'🗑 Так, видалити',callback_data:'delete_confirm'}],[{text:'Скасувати',callback_data:'delete_cancel'}]]}});return res.json({ok:true});}
+  if(!u.consentAt){await send(id,CONSENT_TEXT,{reply_markup:CONSENT_BUTTONS});return res.json({ok:true});}
   if(t==='cancel'){u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');return res.json({ok:true});}
   if(t.startsWith('pick:')&&u.step){
    const match=/^pick:(settlement|street|house):([0-7])$/.exec(t);
