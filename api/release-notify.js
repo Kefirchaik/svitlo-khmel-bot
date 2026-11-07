@@ -18,6 +18,9 @@ export default async function handler(req,res){
   const msg='🚀 ОНОВЛЕННЯ «СВІТЛО ХМЕЛЬНИЧЧИНИ»\n\n'+notes.trim().slice(0,1800)+'\n\n⚡ Дякуємо, що користуєтеся ботом!\n💛 Підтримати автора: https://send.monobank.ua/jar/SDWp3ABSr';
   let sent=0,failed=0;
   for(const id of ids.slice(0,1000)){
+   const raw=await redis(['GET','khm-energy:public:user:'+id]);if(!raw)continue;
+   let u;try{u=JSON.parse(raw);}catch{continue;}
+   if(!u.consentAt)continue;
    try{if(await notify(id,msg))sent++;else failed++;}catch{failed++;}
   }
   await redis(['SET',key,JSON.stringify({sent,failed,at:new Date().toISOString()}),'EX',86400*90]);
