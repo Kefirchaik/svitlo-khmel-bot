@@ -1,37 +1,53 @@
 const {chromium}=require('playwright');
+const API='https://svitlo-khmel-bot.vercel.app';
+const secret=process.env.CHECK_SECRET;
+const normalize=s=>String(s||'').toLocaleLowerCase('uk-UA').replace(/^(с\.|м\.|смт\.|вул\.|пров\.|село|місто|селище)\s*/,'').replace(/\s*\([^)]*\)/g,'').replace(/[^\p{L}\p{N}]/gu,'');
+async function api(path,body){
+ const r=await fetch(API+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+secret,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const text=await r.text();if(!r.ok)throw Error(path+' HTTP '+r.status+' '+text.slice(0,300));return JSON.parse(text);
+}
+async function select(page,name,wanted){
+ const s=page.locator('select[name="'+name+'"]');
+ await s.locator('xpath=following-sibling::span[contains(@class,"select2")]').click();
+ const field=page.locator('.select2-container--open input.select2-search__field');
+ if(await field.count())await field.fill(wanted.replace(/^(с\.|м\.|смт\.|вул\.|пров\.)\s*/,'').replace(/\s*\([^)]*\)/g,''));
+ await page.waitForTimeout(1500);
+ const opts=page.locator('.select2-results__option');
+ const options=(await opts.allTextContents()).map(s=>s.trim()).filter(Boolean);
+ let match=options.find(x=>x.toLocaleLowerCase('uk-UA')===wanted.toLocaleLowerCase('uk-UA'));
+ if(!match)match=options.find(x=>normalize(x)===normalize(wanted));
+ if(!match)throw Error('Не знайдено '+name+': '+wanted);
+ await opts.filter({hasText:match}).first().click();
+ await page.waitForTimeout(900);
+ const selected=await s.evaluate(n=>n.selectedOptions[0]?.text?.trim()||'');
+ if(normalize(selected)!==normalize(wanted))throw Error('Адреса не збігається: '+selected);
+}
 (async()=>{
+ if(!secret)throw Error('Missing CHECK_SECRET');
+ const {addresses}=await api('/api/subscriptions');
+ console.log('Addresses to monitor:',addresses.length);
  const browser=await chromium.launch({headless:true});
- const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
  try{
-  await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
-  for(const [name,search,exact] of [['settlment','Чаньків','с. Чаньків (Дунаєвецька громада)'],['street','Миру','вул. Миру'],['house','5','5']]){
-   const select=page.locator('select[name="'+name+'"]');
-   await select.locator('xpath=following-sibling::span[contains(@class,"select2")]').click();
-   const field=page.locator('.select2-container--open input.select2-search__field');
-   if(await field.count()) await field.fill(search);
-   // Select2 results are loaded asynchronously; wait for the server's options.
-   await page.waitForTimeout(1700);
-   const options=page.locator('.select2-results__option');
-   console.log('OPTIONS_'+name,JSON.stringify((await options.allTextContents()).slice(0,15)));
-   const option=options.filter({hasText:exact}).first();
-   await option.waitFor({state:'visible',timeout:20000});
-   await option.click();
-   await page.waitForTimeout(1200);
-   const selected=await select.evaluate(n=>n.selectedOptions[0]?.text?.trim());
-   if(selected!==exact) throw new Error('Unexpected '+name+': '+selected);
+  for(const address of addresses.slice(0,12)){
+   const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
+   try{
+    await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
+    await select(page,'settlment',address.settlement);
+    await select(page,'street',address.street);
+    await select(page,'house',address.house);
+    await page.waitForTimeout(1700);
+    const table=page.locator('table').filter({hasText:'Тип відключення'}).first();
+    await table.waitFor({state:'visible',timeout:18000});
+    const headings=await table.locator('thead th').allTextContents();
+    if(!headings.some(x=>x.includes('Початок'))||!headings.some(x=>x.includes('Кінець')))throw Error('Unexpected table columns');
+    const rows=await table.locator('tbody tr').evaluateAll(trs=>trs.map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(r=>r.length>=6&&r[4]&&r[5]));
+    const events=rows.map(r=>({kind:r[1],gpv:r[2],gav:r[3],start:r[4],end:r[5]}));
+    await api('/api/address-update',{address,events});
+    console.log('OK',address.id,events.length);
+   }catch(e){
+    console.error('ADDRESS_ERROR',address.id,e.message);
+    await api('/api/address-update',{address,error:e.message}).catch(err=>console.error('REPORT_ERROR',err.message));
+   }finally{await page.close();}
   }
-  await page.waitForTimeout(2200);
-  const table=page.locator('table').filter({hasText:'Тип відключення'}).first();
-  await table.waitFor({state:'visible',timeout:20000});
-  const headings=await table.locator('thead th').allTextContents();
-  if(!headings.some(x=>x.includes('Початок'))||!headings.some(x=>x.includes('Кінець')))throw new Error('Unexpected table columns');
-  const rows=await table.locator('tbody tr').evaluateAll(trs=>trs.map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(row=>row.length>=6&&row[4]&&row[5]));
-  const events=rows.map(r=>({kind:r[1],gpv:r[2],gav:r[3],start:r[4],end:r[5]})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  console.log('ADDRESS_CHECK',JSON.stringify({count:events.length,events}));
-  const response=await fetch(process.env.ADDRESS_UPDATE_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+process.env.CHECK_SECRET},body:JSON.stringify({address:'с. Чаньків, вул. Миру, 5',events})});
-  const data=await response.text();
-  console.log('UPDATE_RESPONSE',response.status,data.slice(0,1000));
-  if(!response.ok)throw new Error('Address update failed: '+response.status);
- }catch(e){console.error('ADDRESS_CHECK_ERROR',e.message);process.exitCode=1}
- finally{await browser.close()}
-})();
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
