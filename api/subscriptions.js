@@ -10,7 +10,7 @@ export default async function handler(req,res){
   const addresses=new Map();
   for(const id of ids.slice(0,1000)){
    const raw=await redis(['GET','khm-energy:public:user:'+id]);if(!raw)continue;
-   const u=JSON.parse(raw);if(u.address?.id)addresses.set(u.address.id,u.address);
+   const u=JSON.parse(raw);if(u.consentAt&&u.address?.id)addresses.set(u.address.id,u.address);
   }
   return res.json({ok:true,addresses:[...addresses.values()].slice(0,60)});
  }catch(e){return res.status(502).json({error:e.message});}
