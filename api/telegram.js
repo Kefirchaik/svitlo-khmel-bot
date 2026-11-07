@@ -49,16 +49,16 @@ export default async function handler(req,res){
   const t=clean(cb?.data||msg.text);
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
-  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\\n\\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
+  if(cmd==='/start'){await saveUser(id,u);await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.');}
   else if(cmd==='/address'){u.step='settlement';await saveUser(id,u);await send(id,'📍 Напиши населений пункт у Хмельницькій області (наприклад: Дунаївці або Чаньків).\nДля скасування надішли /cancel.');}
   else if(cmd==='/cancel'){u.step=null;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');}
   else if(cmd==='/status')await showStatus(id,u);
-  else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\\n'+OFFICIAL+'\\n\\nВажливі повідомлення з каналу надходитимуть автоматично.');
-  else if(cmd==='/version')await send(id,'⚡ Світло Хмельниччини v'+VERSION+'\\n🟢 Публічна версія.\\nНовини: '+OFFICIAL);
+  else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\n'+OFFICIAL+'\n\nВажливі повідомлення з каналу надходитимуть автоматично.');
+  else if(cmd==='/version')await send(id,'⚡ Світло Хмельниччини v'+VERSION+'\n🟢 Публічна версія.\nНовини: '+OFFICIAL);
   else if(cmd==='/graph')await send(id,'📅 Офіційні графіки погодинних відключень:\n'+GRAPH);
   else if(cmd==='/donate')await send(id,'💛 Підтримати автора бота можна добровільним внеском:\n'+DONATE+'\nДякую за підтримку!');
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
-  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\\n📰 Новини обленерго — офіційний канал.\\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
+  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Графіки — офіційний сайт.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
   else if(u.step&&t&&!t.startsWith('/')){
    if(t.length<1||t.length>90)return res.json({ok:true});
    if(u.step==='settlement'){u.draft={settlement:t};u.step='street';await saveUser(id,u);await send(id,'🏘 Населений пункт: '+t+'\nТепер напиши вулицю з типом (наприклад: вул. Миру або пров. Миру).');}
