@@ -10,18 +10,25 @@ async function select(page,name,wanted,id){
  const s=page.locator('select[name="'+name+'"]');
  if(id){
   const value=String(id);
-  try{
-   await s.locator('option[value="'+value+'"]').waitFor({state:'attached',timeout:7000});
-   await s.selectOption(value);
-   await s.evaluate(el=>{if(window.jQuery)window.jQuery(el).trigger('change');});
-   await page.waitForTimeout(1700);
-   console.log('SELECTED_ID',name,value);
-   return;
-  }catch(e){console.log('ID_SELECT_FALLBACK',name,e.message.slice(0,150));}
+  await s.waitFor({state:'attached',timeout:15000});
+  await s.evaluate((el,{value,label})=>{
+   let opt=Array.from(el.options).find(o=>o.value===value);
+   if(!opt){opt=new Option(label,value,true,true);el.add(opt);}
+   opt.selected=true;
+   if(window.jQuery){
+    const $=window.jQuery;
+    $(el).val(value).trigger('change').trigger({type:'select2:select',params:{data:{id:value,text:label}}});
+   }else el.dispatchEvent(new Event('change',{bubbles:true}));
+  },{value,label:wanted});
+  await page.waitForTimeout(1800);
+  const selected=await s.inputValue();
+  if(selected!==value)throw Error('Не вдалося вибрати '+name+' ID '+value);
+  console.log('SELECTED_ID',name,value);
+  return;
  }
  await s.locator('xpath=following-sibling::span[contains(@class,"select2")]').click();
  const field=page.locator('.select2-container--open input.select2-search__field');
- if(await field.count())await field.fill(wanted.replace(/^(с\\.|м\\.|смт\\.|вул\\.|пров\\.)\\s*/,'').replace(/\\s*\\([^)]*\\)/g,''));
+ if(await field.count())await field.fill(wanted.replace(/^(с\.|м\.|смт\.|вул\.|пров\.)\s*/,'').replace(/\s*\([^)]*\)/g,''));
  await page.waitForTimeout(1700);
  const opts=page.locator('.select2-results__option');
  const options=(await opts.allTextContents()).map(s=>s.trim()).filter(Boolean);
