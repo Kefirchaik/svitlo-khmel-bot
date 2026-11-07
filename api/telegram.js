@@ -168,7 +168,7 @@ export default async function handler(req,res){
   let u=await getUser(id);
 
   const t=clean(cb?.data||msg.text);
-  if(t==='/admin'||t.startsWith('admin:')){await adminPanel(id,t==='/admin'?'home':t.slice(6));return res.json({ok:true});}
+  if(t==='/admin'||t.startsWith('admin:')){try{await adminPanel(id,t==='/admin'?'home':t.slice(6));}catch(e){console.error('Admin panel error',e.message);await send(id,'⚠️ Не вдалося отримати статистику. Спробуй пізніше.');}return res.json({ok:true});}
   if(t==='consent_decline'){await send(id,'Без згоди бот не зберігає твої дані. Якщо передумаєш — надішли /start.');return res.json({ok:true});}
   if(t==='consent_accept'){u.consentAt=new Date().toISOString();await saveUser(id,u);await send(id,'✅ Дякуємо! Згоду збережено. Тепер можеш вибрати адресу кнопкою «📍 Моя адреса».');return res.json({ok:true});}
   if(t==='delete_confirm'){await redis(['SREM',INDEX,id]);await redis(['DEL',uid(id)]);await send(id,'🗑 Твої налаштування та прив’язку адреси до Telegram ID видалено з активного сховища. Для нового користування надішли /start.');return res.json({ok:true});}
