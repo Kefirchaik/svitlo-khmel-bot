@@ -1,4 +1,3 @@
-import {officialGpv,queueOf,queueIntervals} from '../lib/gpv.js';
 import {timeline,duration,dayKey,nextDayKey,kyivDate,kyivTime,isPlanned} from '../lib/outages.js';
 const TOKEN=process.env.TELEGRAM_BOT_TOKEN;
 const REDIS=process.env.UPSTASH_REDIS_REST_URL||process.env.KV_REST_API_URL;
@@ -24,18 +23,6 @@ const send=(id,text,extra={})=>tg('sendMessage',{chat_id:id,text,reply_markup:ME
 async function getUser(id){const raw=await redis(['GET',uid(id)]);return raw?JSON.parse(raw):{step:null,address:null,alerts:true};}
 async function saveUser(id,u){await redis(['SET',uid(id),JSON.stringify(u)]);await redis(['SADD',INDEX,String(id)]);}
 function addr(u){return u.address?[u.address.settlement,u.address.street,u.address.house].join(', '):'не вибрана';}
-async function gpvSummary(data){
- const queue=queueOf(data?.events);
- if(!queue)return '\n\n📅 ГПВ: підчергу не вдалося однозначно визначити з адресних даних. Перевір офіційний графік:\n'+GRAPH;
- const days=[dayKey(),nextDayKey()];
- const schedules=await Promise.all(days.map(d=>officialGpv(d)));
- let out='\n\n📅 Погодинні відключення (ГПВ '+queue+')';
- for(let i=0;i<days.length;i++){
-  const s=schedules[i],slots=queueIntervals(s,queue);
-  out+='\n'+(i?'Завтра':'Сьогодні')+' ('+days[i]+'): '+(s?(slots.length?slots.map(x=>x.join('–')).join('; '):'для підчерги немає інтервалів'):'офіційний графік не знайдено');
- }
- return out+'\n⚠️ ГПВ — прогноз, може змінюватися.\n'+GRAPH;
-}
 async function showStatus(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу кнопкою «Моя адреса».');
  const key=ak(u.address.id);const raw=await redis(['GET',key]);
@@ -60,9 +47,9 @@ async function showSchedule(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу.');
  const data=await readAddress(u);
  if(!data)return send(id,'⏳ Ще немає даних для цієї адреси. Зачекай перевірки.');
- if(data.error)return send(id,('⚠️ Остання адресна перевірка не вдалася. Дані адреси можуть бути застарілими.\n'+(data.checkedAt?'🕒 Остання успішна перевірка: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'}):'Успішних адресних перевірок ще не було.')+await gpvSummary(data)+'\n'+SOURCE).slice(0,4000));
+ if(data.error)return send(id,'⚠️ Не вдалося оновити дані з сайту обленерго.\n'+(data.checkedAt?'🕒 Остання успішна перевірка: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'}):'Успішних перевірок ще не було.')+'\n\nРозклад може бути застарілим. Спробуй пізніше або перевір офіційне джерело:\n'+SOURCE);
  const events=timeline(data.events),today=dayKey(),tomorrow=nextDayKey();
- let out='📅 Відключення на сьогодні та завтра\n📍 '+addr(u)+'\n\n🔧 Адресні записи (аварійні та інші):\n';
+ let out='📅 Відключення на сьогодні та завтра\n📍 '+addr(u)+'\n';
  for(const [key,label] of [[today,'Сьогодні'],[tomorrow,'Завтра']]){
   const entries=events.filter(e=>dayKey(new Date(e.startMs))<=key&&dayKey(new Date(e.endMs-1))>=key);
   out+='\n'+label+' ('+key+'):';
