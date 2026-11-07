@@ -101,7 +101,7 @@ async function adminPanel(id,action='home'){
   const u=await getUser(id);
   return requestRefresh(id,u);
  }
- let out='🛡 Адмін-панель «Світло Хмельниччини»\n';
+ let out='🛡 Адмін-панель «СтрумON»\n';
  if(action==='stats'||action==='system'){
   const ids=(await redis(['SMEMBERS',INDEX])||[]).slice(0,5000);
   let consent=0,alerts=0,withAddress=0,errors=0,stale=0;
@@ -175,7 +175,7 @@ export default async function handler(req,res){
   if(t==='delete_cancel'){await send(id,'Видалення скасовано.');return res.json({ok:true});}
   if(t==='/delete_my_data'){await send(id,'🗑 Видалити Telegram ID, адресу та налаштування зі сховища бота? Це не можна скасувати.',{reply_markup:{inline_keyboard:[[{text:'🗑 Так, видалити',callback_data:'delete_confirm'}],[{text:'Скасувати',callback_data:'delete_cancel'}]]}});return res.json({ok:true});}
   if(!u.consentAt){await send(id,CONSENT_TEXT,{reply_markup:CONSENT_BUTTONS});return res.json({ok:true});}
-  if(u.step==='feedback'&&t&&!t.startsWith('/')&&!t.startsWith('pick:')){const message=String(msg.text||'').trim();if(!message||message.length>1500){await send(id,'✉️ Напиши текст до 1500 символів або /cancel.');return res.json({ok:true});}const owner=process.env.FEEDBACK_CHAT_ID||process.env.TELEGRAM_CHAT_ID;if(!owner){await send(id,'⚠️ Зворотний зв’язок тимчасово недоступний. Напиши @kefirchaik.');return res.json({ok:true});}await tg('sendMessage',{chat_id:owner,text:'✉️ Відгук «Світло Хмельниччини»\nTelegram ID: '+id+'\nАдреса: '+addr(u)+'\n\n'+message.slice(0,1500)});u.step=null;await saveUser(id,u);await send(id,'✅ Повідомлення надіслано адміністратору. Дякуємо!');return res.json({ok:true});}
+  if(u.step==='feedback'&&t&&!t.startsWith('/')&&!t.startsWith('pick:')){const message=String(msg.text||'').trim();if(!message||message.length>1500){await send(id,'✉️ Напиши текст до 1500 символів або /cancel.');return res.json({ok:true});}const owner=process.env.FEEDBACK_CHAT_ID||process.env.TELEGRAM_CHAT_ID;if(!owner){await send(id,'⚠️ Зворотний зв’язок тимчасово недоступний. Напиши @kefirchaik.');return res.json({ok:true});}await tg('sendMessage',{chat_id:owner,text:'✉️ Відгук «СтрумON»\nTelegram ID: '+id+'\nАдреса: '+addr(u)+'\n\n'+message.slice(0,1500)});u.step=null;await saveUser(id,u);await send(id,'✅ Повідомлення надіслано адміністратору. Дякуємо!');return res.json({ok:true});}
   if(t==='cancel'){u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');return res.json({ok:true});}
   if(t.startsWith('pick:')&&u.step){
    const match=/^pick:(settlement|street|house):([0-7])$/.exec(t);
@@ -190,7 +190,7 @@ export default async function handler(req,res){
   }
   const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/refresh','📅 Графіки':'/graph','📅 Сьогодні / завтра':'/schedule','📅 Офіційні графіки':'/graph','🟢 Стан бота':'/health','⏳ Відлік':'/countdown','✉️ Зворотний зв’язок':'/feedback','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/refresh'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
-  if(cmd==='/start'){await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nТи можеш відкликати згоду командою /delete_my_data.');}
+  if(cmd==='/start'){await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «СтрумON» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nТи можеш відкликати згоду командою /delete_my_data.');}
   else if(cmd==='/privacy')await send(id,'🔐 Політика конфіденційності:\n'+PRIVACY+'\n\n📜 Умови користування:\n'+TERMS+'\nКонтакт: @kefirchaik');
   else if(cmd==='/terms')await send(id,'📜 Умови користування:\n'+TERMS); 
   else if(cmd==='/delete_my_data')await send(id,'🗑 Видалити Telegram ID, адресу та налаштування зі сховища бота? Це не можна скасувати.',{reply_markup:{inline_keyboard:[[{text:'🗑 Так, видалити',callback_data:'delete_confirm'}],[{text:'Скасувати',callback_data:'delete_cancel'}]]}});
@@ -199,7 +199,7 @@ export default async function handler(req,res){
   else if(cmd==='/status')await showStatus(id,u);
   else if(cmd==='/refresh')await requestRefresh(id,u);
   else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\n'+OFFICIAL+'\n\nВажливі повідомлення з каналу надходитимуть автоматично.');
-  else if(cmd==='/version')await send(id,'⚡ Світло Хмельниччини v'+VERSION+'\n🟢 Публічна версія.\nНовини: '+OFFICIAL);
+  else if(cmd==='/version')await send(id,'⚡ СтрумON v'+VERSION+'\n🟢 Публічна версія.\nНовини: '+OFFICIAL);
   else if(cmd==='/schedule')await showSchedule(id,u);
   else if(cmd==='/countdown')await showCountdown(id,u);
   else if(cmd==='/health')await showHealth(id,u);
