@@ -60,7 +60,7 @@ async function showSchedule(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу.');
  const data=await readAddress(u);
  if(!data)return send(id,'⏳ Ще немає даних для цієї адреси. Зачекай перевірки.');
- if(data.error)return send(id,'⚠️ Не вдалося оновити дані з сайту обленерго.\n'+(data.checkedAt?'🕒 Остання успішна перевірка: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'}):'Успішних перевірок ще не було.')+'\n\nРозклад може бути застарілим. Спробуй пізніше або перевір офіційне джерело:\n'+SOURCE);
+ if(data.error)return send(id,('⚠️ Остання адресна перевірка не вдалася. Дані адреси можуть бути застарілими.\n'+(data.checkedAt?'🕒 Остання успішна перевірка: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'}):'Успішних адресних перевірок ще не було.')+await gpvSummary(data)+'\n'+SOURCE).slice(0,4000));
  const events=timeline(data.events),today=dayKey(),tomorrow=nextDayKey();
  let out='📅 Відключення на сьогодні та завтра\n📍 '+addr(u)+'\n\n🔧 Адресні записи (аварійні та інші):\n';
  for(const [key,label] of [[today,'Сьогодні'],[tomorrow,'Завтра']]){
