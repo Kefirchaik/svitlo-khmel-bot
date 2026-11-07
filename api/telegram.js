@@ -13,7 +13,7 @@ const TERMS='https://svitlo-khmel-bot.vercel.app/terms';
 const CONSENT_TEXT='🔐 Перед початком користування ознайомся з документами:\n'+PRIVACY+'\n'+TERMS+'\n\nБот зберігатиме твій Telegram ID, вибрану адресу та налаштування для надання послуг. Натисни «✅ Приймаю умови», якщо погоджуєшся. Без згоди дані не зберігаються.';
 const CONSENT_BUTTONS={inline_keyboard:[[{text:'🔐 Політика',url:PRIVACY},{text:'📜 Умови',url:TERMS}],[{text:'✅ Приймаю умови',callback_data:'consent_accept'}],[{text:'❌ Не погоджуюся',callback_data:'consent_decline'}]]};
 const greeting=()=>{const h=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',hour:'2-digit',hourCycle:'h23'}).format(new Date()));return h>=5&&h<12?'Доброго ранку':h>=12&&h<18?'Добрий день':h>=18&&h<23?'Добрий вечір':'Доброї ночі';};
-const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Сьогодні / завтра'}],[{text:'⏳ Відлік'},{text:'🔔 Сповіщення'}],[{text:'🟢 Стан бота'},{text:'✉️ Зворотний зв’язок'}],[{text:'📰 Новини обленерго'},{text:'📅 Офіційні графіки'}],[{text:'💛 Підтримати автора'},{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
+const MENU={keyboard:[[{text:'⚡ Мій статус'},{text:'📍 Моя адреса'}],[{text:'🔄 Оновити'},{text:'📅 Сьогодні / завтра'}],[{text:'⏳ Відлік'},{text:'🔔 Сповіщення'}],[{text:'✉️ Зворотний зв’язок'},{text:'📰 Новини обленерго'}],[{text:'📅 Офіційні графіки'},{text:'💛 Підтримати автора'}],[{text:'ℹ️ Допомога'}]],resize_keyboard:true,is_persistent:true};
 const uid=id=>'khm-energy:public:user:'+id;
 const ak=id=>'khm-energy:public:address:'+id;
 const clean=s=>String(s||'').trim().replace(/\\s+/g,' ').slice(0,90);
@@ -35,7 +35,7 @@ async function showStatus(id,u){
  else out+='\n'+data.events.map(e=>'• '+e.kind+' | ГПВ '+e.gpv+' | ГАВ '+e.gav+'\n'+e.start+' — '+e.end).join('\n\n');
  const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
  if(active)out+='\n\n⏳ До запланованого завершення: '+duration(active.endMs-Date.now());
- out+='\n'+freshness(data);
+
  if(data.checkedAt)out+='\n\n🕒 Перевірено: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'});
  out+='\nℹ️ Це записи сайту, не підтвердження фактичної наявності світла.\n'+SOURCE;
  return send(id,out.slice(0,4000));
@@ -56,7 +56,7 @@ async function showSchedule(id,u){
   out+=entries.length?'\n'+entries.map(e=>'• '+e.kind+' | '+kyivTime(e.startMs)+' — '+kyivTime(e.endMs)+(dayKey(new Date(e.startMs))!==dayKey(new Date(e.endMs))?' (перехід доби)':'')).join('\n'):'\nУ таблиці немає записів.';
   out+='\n';
  }
- return send(id,(out+'\n'+freshness(data)+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
+ return send(id,(out+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
 }
 async function showHealth(id,u){
  const data=await readAddress(u);
@@ -67,6 +67,14 @@ async function showHealth(id,u){
  out+='\n🔔 Сповіщення: '+(u.alerts===false?'вимкнено':'увімкнено')+'\nℹ️ «Оновити» показує кеш, не запускає нову перевірку.';
  return send(id,out);
 }
+async function requestRefresh(id,u){
+ if(!u.address)return send(id,'📍 Спочатку вибери адресу.');
+ const lock='khm-energy:refresh:cooldown:'+id;
+ const acquired=await redis(['SET',lock,'1','NX','EX',120]);
+ if(acquired!=='OK')return send(id,'⏳ Перевірку вже замовлено. Зачекай кілька хвилин.');
+ await redis(['SADD','khm-energy:refresh:requests:v1',u.address.id]);
+ return send(id,'🔄 Нову перевірку адреси замовлено.\n\nБот перевірить офіційний сайт під час найближчого запуску моніторингу (зазвичай до 5–10 хвилин). Коли дані зміняться, надійде сповіщення, якщо воно увімкнене.\n\n⚡ Натисни «Мій статус» трохи пізніше.');
+}
 async function showCountdown(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу.');
  const data=await readAddress(u);
@@ -76,7 +84,7 @@ async function showCountdown(id,u){
  if(active)out+='💡 До запланованого завершення '+active.kind.toLowerCase()+': '+duration(active.endMs-now)+'\n'+kyivDate(active.endMs)+' о '+kyivTime(active.endMs);
  else if(next)out+='⚠️ До наступного записаного відключення: '+duration(next.startMs-now)+'\n'+kyivDate(next.startMs)+' о '+kyivTime(next.startMs);
  else out+='Майбутніх або поточних записів у таблиці немає.';
- return send(id,out+'\n\n'+freshness(data)+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.');
+ return send(id,out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.');
 }
 
 const levels={settlement:'населений пункт',street:'вулицю',house:'будинок'};
@@ -129,7 +137,7 @@ export default async function handler(req,res){
    else {const a={settlement:u.draft.settlement,street:u.draft.street,house:item.text,settlementId:u.draft.settlementId,streetId:u.draft.streetId,houseId:item.id};a.id='a'+Buffer.from([a.settlementId,a.streetId,a.houseId].join('|')).toString('base64url');u.address=a;u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'✅ Адресу підтверджено за офіційними списками:\n📍 '+addr(u)+'\n\nДані з’являться після наступної автоматичної перевірки.');}
    return res.json({ok:true});
   }
-  const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/status','📅 Графіки':'/graph','📅 Сьогодні / завтра':'/schedule','📅 Офіційні графіки':'/graph','🟢 Стан бота':'/health','⏳ Відлік':'/countdown','✉️ Зворотний зв’язок':'/feedback','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/status'};
+  const buttons={'⚡ Мій статус':'/status','📍 Моя адреса':'/address','🔄 Оновити':'/refresh','📅 Графіки':'/graph','📅 Сьогодні / завтра':'/schedule','📅 Офіційні графіки':'/graph','🟢 Стан бота':'/health','⏳ Відлік':'/countdown','✉️ Зворотний зв’язок':'/feedback','🔔 Сповіщення':'/alerts','💛 Підтримати автора':'/donate','ℹ️ Допомога':'/help','📰 Новини обленерго':'/news',status:'/status',graph:'/graph',refresh:'/refresh'};
   const cmd=buttons[t]||t.split(' ')[0].split('@')[0];
   if(cmd==='/start'){await send(id,greeting()+'! 👋\n\n⚡ Вітаємо у «Світло Хмельниччини» v'+VERSION+'!\n\nОбирай адресу й отримуй дані про відключення та сповіщення.\n📍 Поточна адреса: '+addr(u)+'\n\nВикористовуй кнопки нижче.\n\n🔐 Політика: '+PRIVACY+'\n📜 Умови: '+TERMS+'\nТи можеш відкликати згоду командою /delete_my_data.');}
   else if(cmd==='/privacy')await send(id,'🔐 Політика конфіденційності:\n'+PRIVACY+'\n\n📜 Умови користування:\n'+TERMS+'\nКонтакт: @kefirchaik');
@@ -138,6 +146,7 @@ export default async function handler(req,res){
   else if(cmd==='/address'){u.step='settlement';delete u.draft;delete u.options;await saveUser(id,u);await send(id,'📍 Введи частину назви населеного пункту. Бот запропонує варіанти з офіційного списку.\nДля скасування надішли /cancel.');}
   else if(cmd==='/cancel'){u.step=null;await saveUser(id,u);await send(id,'Вибір адреси скасовано.');}
   else if(cmd==='/status')await showStatus(id,u);
+  else if(cmd==='/refresh')await requestRefresh(id,u);
   else if(cmd==='/news')await send(id,'📰 Офіційні повідомлення Хмельницькобленерго:\n'+OFFICIAL+'\n\nВажливі повідомлення з каналу надходитимуть автоматично.');
   else if(cmd==='/version')await send(id,'⚡ Світло Хмельниччини v'+VERSION+'\n🟢 Публічна версія.\nНовини: '+OFFICIAL);
   else if(cmd==='/schedule')await showSchedule(id,u);
@@ -147,7 +156,7 @@ export default async function handler(req,res){
   else if(cmd==='/graph')await send(id,'📅 Офіційні графіки погодинних відключень:\n'+GRAPH);
   else if(cmd==='/donate')await send(id,'💛 Підтримати автора бота можна добровільним внеском:\n'+DONATE+'\nДякую за підтримку!');
   else if(cmd==='/alerts'){u.alerts=!u.alerts;await saveUser(id,u);await send(id,u.alerts?'🔔 Сповіщення для твоєї адреси увімкнено.':'🔕 Сповіщення для твоєї адреси вимкнено.');}
-  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — повторно показати збережені дані.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Сьогодні / завтра — розклад за адресою.\n⏳ Відлік — орієнтовний час до завершення запису.\n📅 Офіційні графіки — сайт обленерго.\n/countdown — орієнтовний відлік.\n/health — стан перевірки.\n✉️ Зворотний зв’язок — написати адміністратору.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\n🔐 /privacy — політика конфіденційності.\n📜 /terms — умови користування.\n🗑 /delete_my_data — видалити особисті налаштування.\nКонтакт: @kefirchaik\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
+  else if(cmd==='/help')await send(id,'📍 Моя адреса — вибір населеного пункту, вулиці та будинку.\n⚡ Мій статус — останні дані сайту.\n🔄 Оновити — замовити нову перевірку офіційного сайту.\n🔔 Сповіщення — увімкнути/вимкнути повідомлення про зміни.\n📅 Сьогодні / завтра — розклад за адресою.\n⏳ Відлік — орієнтовний час до завершення запису.\n📅 Офіційні графіки — сайт обленерго.\n/countdown — орієнтовний відлік.\n/health — стан перевірки.\n✉️ Зворотний зв’язок — написати адміністратору.\n📰 Новини обленерго — офіційний канал.\n/version — версія бота.\n💛 Підтримати автора — добровільний внесок.\n\n🔐 /privacy — політика конфіденційності.\n📜 /terms — умови користування.\n🗑 /delete_my_data — видалити особисті налаштування.\nКонтакт: @kefirchaik\n\nПеревірки запускаються приблизно кожні 10 хвилин; фактичні затримки можливі.');
   else if(u.step&&t&&!t.startsWith('/'))await choices(id,u,t);
   else if(t.startsWith('/'))await send(id,'Невідома команда. Натисни «ℹ️ Допомога».');
  }catch(e){console.error('Bot error',e.message);try{await send(id,u?.step?'⚠️ Не вдалося завантажити офіційний список адрес. Спробуй пізніше або натисни /cancel.':'⚠️ Сталася помилка. Спробуй ще раз пізніше.');}catch{}}
