@@ -55,17 +55,26 @@ async function select(page,name,wanted,id){
   for(const address of selected.values()){
    const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
    try{
-    await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
-    await select(page,'settlment',address.settlement,address.settlementId);
-    await select(page,'street',address.street,address.streetId);
-    await select(page,'house',address.house,address.houseId);
-    await page.waitForTimeout(1700);
-    const table=page.locator('table').filter({hasText:'Тип відключення'}).first();
-    await table.waitFor({state:'visible',timeout:18000});
-    const headings=await table.locator('thead th').allTextContents();
-    if(!headings.some(x=>x.includes('Початок'))||!headings.some(x=>x.includes('Кінець')))throw Error('Unexpected table columns');
-    const rows=await table.locator('tbody tr').evaluateAll(trs=>trs.map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(r=>r.length>=6&&r[4]&&r[5]));
-    const events=rows.map(r=>({kind:r[1],gpv:r[2],gav:r[3],start:r[4],end:r[5]}));
+    let events;
+    for(let attempt=1;attempt<=2;attempt++){
+     try{
+      await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
+      await select(page,'settlment',address.settlement,address.settlementId);
+      await select(page,'street',address.street,address.streetId);
+      await select(page,'house',address.house,address.houseId);
+      const table=page.locator('table').filter({hasText:'Тип відключення'}).first();
+      await table.waitFor({state:'visible',timeout:25000});
+      const headings=await table.locator('thead th').allTextContents();
+      if(!headings.some(x=>x.includes('Початок'))||!headings.some(x=>x.includes('Кінець')))throw Error('Unexpected table columns');
+      const rows=await table.locator('tbody tr').evaluateAll(trs=>trs.map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.replace(/\s+/g,' ').trim())).filter(r=>r.length>=6&&r[4]&&r[5]));
+      events=rows.map(r=>({kind:r[1],gpv:r[2],gav:r[3],start:r[4],end:r[5]}));
+      break;
+     }catch(err){
+      console.warn('ATTEMPT_FAILED',address.id,attempt,err.message.slice(0,250));
+      if(attempt===2)throw err;
+      await page.waitForTimeout(2500);
+     }
+    }
     await api('/api/address-update',{address,events});
     console.log('OK',address.id,events.length);
    }catch(e){
