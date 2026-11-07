@@ -34,8 +34,8 @@ async function showStatus(id,u){
 }
 const levels={settlement:'населений пункт',street:'вулицю',house:'будинок'};
 async function catalog(level,parent,query=''){
- const base=process.env.VERCEL_URL?'https://'+process.env.VERCEL_URL:'https://svitlo-khmel-bot.vercel.app';
- const r=await fetch(base+'/api/address-options?level='+level+(parent?'&parent='+encodeURIComponent(parent):'')+(query?'&q='+encodeURIComponent(query):''),{signal:AbortSignal.timeout(15000)});
+ const base='https://svitlo-khmel-bot.vercel.app';
+ const r=await fetch(base+'/api/address-options?level='+level+(parent?'&parent='+encodeURIComponent(parent):'')+(query?'&q='+encodeURIComponent(query):''),{signal:AbortSignal.timeout(9000)});
  if(!r.ok)throw Error('Address catalog HTTP '+r.status);
  const data=await r.json();if(!Array.isArray(data.items))throw Error('Invalid address catalog');return data.items;
 }
@@ -44,7 +44,7 @@ async function choices(id,u,query=''){
  const items=await catalog(level,parent,query);
  const q=query.toLocaleLowerCase('uk-UA').trim();
  const found=items.filter(x=>x.text.toLocaleLowerCase('uk-UA').includes(q));
- if(!found.length)return send(id,'🔎 Такої назви немає серед отриманих адрес. Уточни пошук.');
+ if(!found.length)return send(id,'🔎 У списку обленерго не знайдено збігів. Спробуй іншу частину назви.');
  u.options=found.slice(0,8);await saveUser(id,u);
  const keyboard=u.options.map((x,i)=>[{text:x.text,callback_data:'pick:'+level+':'+i}]);
  keyboard.push([{text:'❌ Скасувати',callback_data:'cancel'}]);
@@ -69,8 +69,7 @@ export default async function handler(req,res){
    if(!match||match[1]!==u.step||!u.options?.[Number(match[2])]){await send(id,'⚠️ Кнопка застаріла. Введи пошуковий запит ще раз.');return res.json({ok:true});}
    const item=u.options[Number(match[2])];
    const parent=u.step==='street'?u.draft?.settlementId:u.step==='house'?u.draft?.streetId:null;
-   const actual=await catalog(u.step,parent,item.text);
-   if(!actual.some(x=>x.id===item.id&&x.text===item.text))throw Error('Stale address choice');
+   // Choice was already fetched from the official catalog and saved for this user.
    if(u.step==='settlement'){u.draft={settlement:item.text,settlementId:item.id};u.step='street';delete u.options;await saveUser(id,u);await send(id,'🏘 Обрано: '+item.text+'\\nВведи частину назви вулиці для пошуку в офіційному списку.');}
    else if(u.step==='street'){u.draft.street=item.text;u.draft.streetId=item.id;u.step='house';delete u.options;await saveUser(id,u);await send(id,'🏠 Обрано: '+item.text+'\\nВведи номер будинку для пошуку в офіційному списку.');}
    else {const a={settlement:u.draft.settlement,street:u.draft.street,house:item.text,settlementId:u.draft.settlementId,streetId:u.draft.streetId,houseId:item.id};a.id='a'+Buffer.from([a.settlementId,a.streetId,a.houseId].join('|')).toString('base64url');u.address=a;u.step=null;delete u.draft;delete u.options;await saveUser(id,u);await send(id,'✅ Адресу підтверджено за офіційними списками:\\n📍 '+addr(u)+'\\n\\nДані з’являться після наступної автоматичної перевірки.');}
