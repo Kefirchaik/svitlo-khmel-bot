@@ -23,6 +23,19 @@ const send=(id,text,extra={})=>tg('sendMessage',{chat_id:id,text,reply_markup:ME
 async function getUser(id){const raw=await redis(['GET',uid(id)]);return raw?JSON.parse(raw):{step:null,address:null,alerts:true};}
 async function saveUser(id,u){await redis(['SET',uid(id),JSON.stringify(u)]);await redis(['SADD',INDEX,String(id)]);}
 function addr(u){return u.address?[u.address.settlement,u.address.street,u.address.house].join(', '):'не вибрана';}
+async function gpvCached(data){
+ const queues=[...new Set((data?.events||[]).map(e=>String(e.gpv||'').match(/\b[1-6]\.[12]\b/)?.[0]).filter(Boolean))];
+ if(queues.length!==1)return '\n\n📅 ГПВ: підчергу за адресою не визначено однозначно.\n'+GRAPH;
+ const dates=[dayKey(),nextDayKey()];
+ const raw=await Promise.all(dates.map(d=>redis(['GET','khm-energy:gpv:'+d]).catch(()=>null)));
+ let out='\n\n📅 Офіційні погодинні графіки — підчерга '+queues[0];
+ for(let i=0;i<dates.length;i++){
+  let item=null;try{item=raw[i]?JSON.parse(raw[i]):null;}catch{}
+  const intervals=item?.queues?.[queues[0]];
+  out+='\n'+(i?'Завтра':'Сьогодні')+' ('+dates[i]+'): '+(intervals?.length?intervals.map(x=>x.join('–')).join('; '):'опублікований графік ще не завантажено');
+ }
+ return out+'\n⚠️ ГПВ можуть змінюватися.\n'+GRAPH;
+}
 async function showStatus(id,u){
  if(!u.address)return send(id,'📍 Спочатку вибери адресу кнопкою «Моя адреса».');
  const key=ak(u.address.id);const raw=await redis(['GET',key]);
@@ -33,7 +46,7 @@ async function showStatus(id,u){
  if(data.error)out+='\n⚠️ Остання автоматична перевірка не вдалася. Нижче — дані попередньої успішної перевірки, вони можуть бути застарілими.';
  else if(!data.events?.length)out+='\nУ таблиці сайту записів про відключення немає.';
  else out+='\n'+data.events.map(e=>'• '+e.kind+' | ГПВ '+e.gpv+' | ГАВ '+e.gav+'\n'+e.start+' — '+e.end).join('\n\n');
- const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
+ out+=await gpvCached(data);\n const active=timeline(data.events).find(e=>e.startMs<=Date.now()&&e.endMs>Date.now());
  if(active)out+='\n\n⏳ До запланованого завершення: '+duration(active.endMs-Date.now());
 
  if(data.checkedAt)out+='\n\n🕒 Перевірено: '+new Date(data.checkedAt).toLocaleString('uk-UA',{timeZone:'Europe/Kyiv'});
@@ -56,7 +69,7 @@ async function showSchedule(id,u){
   out+=entries.length?'\n'+entries.map(e=>'• '+e.kind+' | '+kyivTime(e.startMs)+' — '+kyivTime(e.endMs)+(dayKey(new Date(e.startMs))!==dayKey(new Date(e.endMs))?' (перехід доби)':'')).join('\n'):'\nУ таблиці немає записів.';
   out+='\n';
  }
- return send(id,(out+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
+ out+=await gpvCached(data);\n return send(id,(out+checkedLine(data)+'\nℹ️ Час орієнтовний; це записи обленерго.\n'+SOURCE).slice(0,4000));
 }
 async function showHealth(id,u){
  const data=await readAddress(u);
@@ -84,7 +97,7 @@ async function showCountdown(id,u){
  if(active)out+='💡 До запланованого завершення '+active.kind.toLowerCase()+': '+duration(active.endMs-now)+'\n'+kyivDate(active.endMs)+' о '+kyivTime(active.endMs);
  else if(next)out+='⚠️ До наступного записаного відключення: '+duration(next.startMs-now)+'\n'+kyivDate(next.startMs)+' о '+kyivTime(next.startMs);
  else out+='Майбутніх або поточних записів у таблиці немає.';
- return send(id,(out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.').slice(0,4000));
+ out+=await gpvCached(data);\n return send(id,(out+checkedLine(data)+'\n⚠️ Не гарантує фактичного часу появи світла.').slice(0,4000));
 }
 
 // Адмін-панель доступна виключно власнику через приватний Telegram-чат.
