@@ -28,7 +28,10 @@ async function select(page,name,wanted){
  console.log('Addresses to monitor:',addresses.length);
  const browser=await chromium.launch({headless:true});
  try{
-  for(const address of addresses.slice(0,12)){
+  const batchSize=12;const batchCount=Math.max(1,Math.ceil(addresses.length/batchSize));
+  const batch=Math.floor(Date.now()/600000)%batchCount;
+  console.log('Batch',batch+1,'of',batchCount);
+  for(const address of addresses.slice(batch*batchSize,(batch+1)*batchSize)){
    const page=await browser.newPage({locale:'uk-UA',timezoneId:'Europe/Kyiv'});
    try{
     await page.goto('https://hoe.com.ua/shutdown/new',{waitUntil:'domcontentloaded',timeout:45000});
