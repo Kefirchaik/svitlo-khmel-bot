@@ -15,7 +15,7 @@ export default async function handler(req,res){
   const key=addressKey(address.id),previous=await redis(['GET',key]);
   const old=previous?JSON.parse(previous):null;
   const sorted=Array.isArray(events)?events.map(e=>({kind:e.kind,gpv:e.gpv,gav:e.gav,start:e.start,end:e.end})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))):null;
-  const record={events:sorted||old?.events||[],checkedAt:new Date().toISOString(),error:typeof error==='string'?error.slice(0,200):null};
+  const record={events:sorted||old?.events||[],checkedAt:sorted?new Date().toISOString():(old?.checkedAt||null),lastAttemptAt:new Date().toISOString(),error:typeof error==='string'?error.slice(0,200):null};
   if(address.id==='legacy-chankiv-myru-5'&&sorted)await redis(['SET','khm-energy:address:chankiv-myru-5:v1',JSON.stringify(sorted)]);
   await redis(['SET',key,JSON.stringify(record)]);
   const changed=!!sorted&&!!old&&!old.error&&JSON.stringify(old.events)!==JSON.stringify(sorted);
